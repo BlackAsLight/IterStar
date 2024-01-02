@@ -26,11 +26,11 @@ array = new Iter(range(5, 10))
 ```
 
 ```ts
-let array = new AsyncIter([0, 1, 2, 3, 4, 5])
+let array = await new AsyncIter([0, 1, 2, 3, 4, 5])
   .map((x) => x + Math.floor(Math.random() * 10))
   .collect();
 
-array = new AsyncIter(await asyncRange(5, 10))
+array = await new AsyncIter(await asyncRange(5, 10))
   .filter((x) => x % 2)
   .collect();
 ```
