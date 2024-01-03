@@ -1,21 +1,31 @@
+type Flat<T> = T extends Iterable<infer U> ? Flat<U> : T
+type AsyncFlat<T> = T extends AsyncIterable<infer U> ? AsyncFlat<U> : T
+
 export function* range(from = 0, to?: number) {
-	if (to == undefined)
+	if (to == undefined) {
 		to = from
+		from = 0
+	}
 	for (let i = from; i < to; ++i)
 		yield i
 }
 
 export async function* asyncRange(from = 0, to?: number) {
-	if (to == undefined)
+	if (to == undefined) {
 		to = from
+		from = 0
+	}
 	for (let i = from; i < to; ++i)
 		yield i
 }
 
 export class Iter<T> {
-	#gen: { [ Symbol.iterator ](): Iterator<T> }
+	#gen: Generator<T>
 	constructor (array: { [ Symbol.iterator ](): Iterator<T> }) {
-		this.#gen = array
+		this.#gen = (function* () {
+			for (const x of array)
+				yield x
+		})()
 	}
 
 	collect(): T[] {
@@ -27,12 +37,11 @@ export class Iter<T> {
 
 	wait(): void {
 		// deno-lint-ignore no-empty
-		for (const _x of this.#gen) { }
+		while (!this.#gen.next().done) { }
 	}
 
 	shift(): T | undefined {
-		for (const x of this.#gen)
-			return x
+		return this.#gen.next().value
 	}
 
 	forEach<U>(func: (x: T) => U): void {
@@ -44,6 +53,17 @@ export class Iter<T> {
 		return new Iter((function* (gen) {
 			for (const x of gen)
 				yield func(x)
+		})(this.#gen))
+	}
+
+	flat(): Iter<Flat<T>> {
+		return new Iter((function* (gen) {
+			for (const x of gen)
+				if ((x as any)[ Symbol.iterator ])
+					for (const y of (x as any))
+						yield y
+				else
+					yield x
 		})(this.#gen))
 	}
 
@@ -92,12 +112,28 @@ export class Iter<T> {
 		}
 		return output.slice(sep.length)
 	}
+
+	[ Symbol.iterator ]() {
+		return {
+			next: () => this.#gen.next()
+		}
+	}
+
+	toAsync() {
+		return new AsyncIter((async function* (gen) {
+			for (const x of gen)
+				yield x
+		})(this.#gen))
+	}
 }
 
 export class AsyncIter<T> {
-	#gen: { [ Symbol.asyncIterator ](): AsyncIterator<T> }
+	#gen: AsyncGenerator<T>
 	constructor (array: { [ Symbol.asyncIterator ](): AsyncIterator<T> }) {
-		this.#gen = array
+		this.#gen = (async function* () {
+			for await (const x of array)
+				yield x
+		})()
 	}
 
 	async collect(): Promise<T[]> {
@@ -109,12 +145,11 @@ export class AsyncIter<T> {
 
 	async wait(): Promise<void> {
 		// deno-lint-ignore no-empty
-		for await (const _x of this.#gen) { }
+		while (!(await this.#gen.next()).done) { }
 	}
 
 	async shift(): Promise<T | undefined> {
-		for await (const x of this.#gen)
-			return x
+		return (await this.#gen.next()).value
 	}
 
 	async forEach<U>(func: (x: T) => U): Promise<void> {
@@ -126,6 +161,17 @@ export class AsyncIter<T> {
 		return new AsyncIter((async function* (gen) {
 			for await (const x of gen)
 				yield func(x)
+		})(this.#gen))
+	}
+
+	flat(): AsyncIter<AsyncFlat<T>> {
+		return new AsyncIter((async function* (gen) {
+			for await (const x of gen)
+				if ((x as any)[ Symbol.asyncIterator ])
+					for await (const y of (x as any))
+						yield y
+				else
+					yield x
 		})(this.#gen))
 	}
 
@@ -174,5 +220,11 @@ export class AsyncIter<T> {
 			output += sep + x
 		}
 		return output.slice(sep.length)
+	}
+
+	[ Symbol.asyncIterator ]() {
+		return {
+			next: () => this.#gen.next()
+		}
 	}
 }
