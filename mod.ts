@@ -1,5 +1,7 @@
 type Flat<T> = T extends Iterable<infer U> ? Flat<U> : T
 type AsyncFlat<T> = T extends AsyncIterable<infer U> ? AsyncFlat<U> : T
+// deno-lint-ignore no-explicit-any
+type Force = any
 
 export function* range(from = 0, to?: number) {
 	if (to == undefined) {
@@ -57,14 +59,14 @@ export class Iter<T> {
 	}
 
 	flat(): Iter<Flat<T>> {
-		return new Iter((function* (gen) {
+		return new Iter((function* a(gen) {
 			for (const x of gen)
-				if ((x as any)[ Symbol.iterator ])
-					for (const y of (x as any))
+				if ((x as Force)[ Symbol.iterator ])
+					for (const y of new Iter(x as Force).flat())
 						yield y
 				else
 					yield x
-		})(this.#gen))
+		})(this.#gen)) as Force
 	}
 
 	filter<U>(func: (x: T) => U): Iter<T> {
@@ -167,12 +169,12 @@ export class AsyncIter<T> {
 	flat(): AsyncIter<AsyncFlat<T>> {
 		return new AsyncIter((async function* (gen) {
 			for await (const x of gen)
-				if ((x as any)[ Symbol.asyncIterator ])
-					for await (const y of (x as any))
+				if ((x as Force)[ Symbol.asyncIterator ])
+					for await (const y of new AsyncIter(x as Force).flat())
 						yield y
 				else
 					yield x
-		})(this.#gen))
+		})(this.#gen)) as Force
 	}
 
 	filter<U>(func: (x: T) => U): AsyncIter<T> {
