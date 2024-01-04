@@ -59,7 +59,7 @@ export class Iter<T> {
 	}
 
 	flat(): Iter<Flat<T>> {
-		return new Iter((function* a(gen) {
+		return new Iter((function* (gen) {
 			for (const x of gen)
 				if ((x as Force)[ Symbol.iterator ])
 					for (const y of new Iter(x as Force).flat())
