@@ -69,11 +69,11 @@ export class Iter<T> {
 		})(this.#gen)) as Force
 	}
 
-	filter<U>(func: (x: T) => U): Iter<T> {
+	filter<U, V extends unknown = boolean>(func: (x: T) => V): Iter<Extract<T, U>> {
 		return new Iter((function* (gen) {
 			for (const x of gen)
 				if (func(x))
-					yield x
+					yield x as Extract<T, U>
 		})(this.#gen))
 	}
 
@@ -177,11 +177,11 @@ export class AsyncIter<T> {
 		})(this.#gen)) as Force
 	}
 
-	filter<U>(func: (x: T) => U): AsyncIter<T> {
+	filter<U, V extends unknown = boolean>(func: (x: T) => V): AsyncIter<Extract<T, U>> {
 		return new AsyncIter((async function* (gen) {
 			for await (const x of gen)
 				if (func(x))
-					yield x
+					yield x as Extract<T, U>
 		})(this.#gen))
 	}
 
