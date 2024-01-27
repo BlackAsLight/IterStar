@@ -121,6 +121,10 @@ export class Iter<T> {
 		}
 	}
 
+	get readable() {
+		return ReadableStream.from(this.#gen)
+	}
+
 	toAsync() {
 		return new AsyncIter((async function* (gen) {
 			for (const x of gen)
@@ -228,5 +232,9 @@ export class AsyncIter<T> {
 		return {
 			next: () => this.#gen.next()
 		}
+	}
+
+	get readable() {
+		return ReadableStream.from(this.#gen)
 	}
 }
