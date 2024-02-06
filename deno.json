@@ -1,5 +1,5 @@
 {
 	"name": "@doctor/iterstar",
 	"version": "1.1.3",
-	"exports": "./main.ts"
+	"exports": "./mod.ts"
 }
