@@ -238,3 +238,67 @@ export class AsyncIter<T> {
 		return ReadableStream.from(this.#gen)
 	}
 }
+
+export class Queue<T> {
+	#head = 0
+	#tail = 0
+	#list: { [ k: string ]: T } = {}
+	constructor (arrayLike?: { [ Symbol.iterator ](): Iterator<T> }) {
+		if (arrayLike)
+			for (const value of arrayLike)
+				this.#list[ this.#tail++ ] = value
+	}
+
+	get length(): number {
+		return this.#tail - this.#head
+	}
+
+	set length(x) {
+		const len = this.length
+		this.#tail = x + this.#head
+		if (x < len)
+			for (let i = this.#head; i < this.#tail; ++i)
+				delete this.#list[ i ]
+	}
+
+	shift(): T | undefined {
+		if (this.#head < this.#tail) {
+			const value = this.#list[ this.#head ]
+			delete this.#list[ this.#head++ ]
+			return value
+		}
+	}
+
+	unshift(...array: T[]): number {
+		for (const value of array)
+			this.#list[ --this.#head ] = value
+		return this.length
+	}
+
+	pop(): T | undefined {
+		if (this.#head < this.#tail) {
+			const value = this.#list[ --this.#tail ]
+			delete this.#list[ this.#tail ]
+			return value
+		}
+	}
+
+	push(...array: T[]): number {
+		for (const value of array)
+			this.#list[ this.#tail++ ] = value
+		return this.length
+	}
+
+	at(i: number): T | undefined {
+		return this.#list[ i + this.#head ]
+	}
+
+	[ Symbol.iterator ](): { next: () => IteratorResult<T> } {
+		return {
+			next: () => ({
+				done: !this.length,
+				value: this.shift()!
+			})
+		}
+	}
+}

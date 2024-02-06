@@ -1,48 +1,125 @@
 # IterStar
 
-Iter* is a simple lib for providing methods to iterate over array like objects
-in a generator fashion.
+Iter* is a simple lib providing ways to iterate over array like objects in ways
+where a traditional array preforms inefficiently for the desired movement, or
+would cause spikes in memory usage. It offers ways to work with Generators and
+ReadableStreams in similar ways to the traditional array, without needing to
+pull it all into memory first.
 
-It offers a few similar methods as normal arrays, but may have a few limitations
-due to logic. The `Iter` class is a bit slower than a traditional array, but
-allows you to work with data sets that are a lot larger than an array can be.
+Iter* offers three classes of interest here. Iter, AsyncIter and Queue.
 
-If the method on a Iter returns another Iter then it won't actually execute the
-function provided in unless you call something like `.collect()` or `wait()` to
-force it to iterate through everything. `.wait()` works just like `.collect()`
-except it does not store the returned values. It is meant to be used in
-instances where you want all the functions to execute but don't want a returned
-array. This helps if the amount you're trying to iterate through is larger than
-a normal array can be.
+## class Iter
+
+The Iter class is good for when you'd want to work with a large amount of
+generative data in an array type fashion. I don't see this class getting used
+that much, but it's good to have a sync version of the async type.
 
 ```ts
-let array = new Iter([0, 1, 2, 3, 4, 5])
-  .map((x) => x + Math.floor(Math.random() * 10))
-  .collect();
+import { AsyncIter } from "https://deno.land/x/iterstar/mod.ts";
 
-array = new Iter(range(5, 10))
-  .filter((x) => x % 2)
-  .collect();
+// Without Iter
+for (let i = 0; i < Number.MAX_SAFE_INTEGER; ++i) {
+  console.log(i);
+}
+
+// With Iter
+new Iter(range(0, Number.MAX_SAFE_INTEGER)).forEach(console.log);
 ```
 
-```ts
-const array = await new AsyncIter(await asyncRange(5, 10))
-  .filter((x) => x % 2)
-  .collect();
-```
-## Examples
-### Processing a zipped csv file
-```ts
-import { CsvParseStream } from 'https://deno.land/std/csv/mod.ts'
-import { AsyncIter } from 'https://deno.land/x/iterstar/mod.ts'
-import { read } from 'https://deno.land/x/streaming_zip/read.ts'
+## class AsyncIter
 
-const iter: AsyncIter<string[]> = new AsyncIter(read((await fetch('URL')).body!))
-  .filter<{ type: 'file' }>(entry => entry.type === 'file')
-  .map(entry => entry.body.stream().pipeThrough(new TextDecoderStream()).pipeThrough(new CsvParseStream()))
-  .flat()
+The AsyncIter class is good for when working with streaming data such as from a
+ReadableStream. For instance, if you wanted to process a zipped csv file all in
+memory from a fetch request.
 
-const keys: string[] = (await iter.shift())!
+```ts
+import { CsvParseStream } from "https://deno.land/std/csv/mod.ts";
+import { read } from "https://deno.land/x/streaming_zip/read.ts";
+
+import { AsyncIter } from "https://deno.land/x/iterstar/mod.ts";
+
+// Without AsyncIter
+const gen = unzipCSV((await fetch("")).body!);
+const keys = (await gen.next()).value!;
+for await (const values of gen) {
+  const row = values.reduce(
+    (obj, value, i) => (obj[keys[i]] = value, obj),
+    {} as Record<string, string>,
+  );
+  // Code
+}
+
+async function* unzipCSV(stream: ReadableStream<Uint8Array>) {
+  for await (const entry of read(stream)) {
+    if (entry.type === "file") {
+      for await (
+        const x of entry.body.stream().pipeThrough(new TextDecoderStream())
+          .pipeThrough(new CsvParseStream())
+      ) {
+        yield x;
+      }
+    }
+  }
+}
+
+// With AsyncIter
+const iter: AsyncIter<string[]> = new AsyncIter(read((await fetch("")).body!))
+  .filter<{ type: "file" }>((entry) => entry.type === "file")
+  .map((entry) =>
+    entry.body.stream().pipeThrough(new TextDecoderStream()).pipeThrough(
+      new CsvParseStream(),
+    )
+  )
+  .flat();
+
+const keys: string[] = (await iter.shift())!;
 iter
-  .map(values => values.reduce((obj, value, i) => (obj[keys[i]] = value, obj), {} as Record<string, string>))
-  .forEach(row => console.log(row))
+  .map((values) =>
+    values.reduce(
+      (obj, value, i) => (obj[keys[i]] = value, obj),
+      {} as Record<string, string>,
+    )
+  )
+  .forEach((row) => {
+    // Code
+  });
+```
+
+## class Queue
+
+The Queue class is really only good for if you want to do a lot of
+`.shift()`-ing. In most instances a traditional array will out preform this
+Queue by magnitudes, but if your data structure has you working with queues
+instead of stacks, and quite large queues then this queue is orders of magnitude
+faster to shift than to shift on a traditional array.
+
+```ts
+import { Queue } from "https://deno.land/x/iterstar/mod.ts";
+
+const data = []; // Mysterious Data
+
+const queue = new Queue(data);
+while (queue.length) {
+  const value = queue.shift();
+  if (someCondition) {
+    // Code
+  } else {
+    queue.push(value);
+  }
+}
+```
+
+Looping like the above example will cause the underlining index to keep
+incrementing, if said underlining value surpasses `Number.MAX_SAFE_INTEGER` then
+all hell could break loose. However if we assumes that it took 1ms to loop once
+here then it would take ~2,926 centuries to reach that max number. If you did
+happen to reach this number, you could always just pass it into another Queue to
+reset the internal indexes.
+
+```ts
+let queue = new Queue(data);
+
+// Centuries Later...
+
+queue = new Queue(queue);
+```
