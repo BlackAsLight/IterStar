@@ -3,7 +3,7 @@ type AsyncFlat<T> = T extends AsyncIterable<infer U> ? AsyncFlat<U> : T
 // deno-lint-ignore no-explicit-any
 type Force = any
 
-export function* range(from = 0, to?: number) {
+export function* range(from = 0, to?: number): Generator<number> {
 	if (to == undefined) {
 		to = from
 		from = 0
@@ -12,7 +12,7 @@ export function* range(from = 0, to?: number) {
 		yield i
 }
 
-export async function* asyncRange(from = 0, to?: number) {
+export async function* asyncRange(from = 0, to?: number): AsyncGenerator<number> {
 	if (to == undefined) {
 		to = from
 		from = 0
@@ -107,7 +107,7 @@ export class Iter<T> {
 		return init
 	}
 
-	join(sep = '') {
+	join(sep = ''): string {
 		let output = ''
 		for (const x of this.#gen) {
 			output += sep + x
@@ -115,17 +115,17 @@ export class Iter<T> {
 		return output.slice(sep.length)
 	}
 
-	[ Symbol.iterator ]() {
+	[ Symbol.iterator ](): { next: () => IteratorResult<T> } {
 		return {
 			next: () => this.#gen.next()
 		}
 	}
 
-	get readable() {
+	get readable(): ReadableStream<T> {
 		return ReadableStream.from(this.#gen)
 	}
 
-	toAsync() {
+	toAsync(): AsyncIter<T> {
 		return new AsyncIter((async function* (gen) {
 			for (const x of gen)
 				yield x
@@ -220,7 +220,7 @@ export class AsyncIter<T> {
 		return init
 	}
 
-	async join(sep = '') {
+	async join(sep = ''): Promise<string> {
 		let output = ''
 		for await (const x of this.#gen) {
 			output += sep + x
@@ -228,13 +228,13 @@ export class AsyncIter<T> {
 		return output.slice(sep.length)
 	}
 
-	[ Symbol.asyncIterator ]() {
+	[ Symbol.asyncIterator ](): { next: () => Promise<IteratorResult<T>> } {
 		return {
 			next: () => this.#gen.next()
 		}
 	}
 
-	get readable() {
+	get readable(): ReadableStream<T> {
 		return ReadableStream.from(this.#gen)
 	}
 }
