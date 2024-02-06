@@ -253,7 +253,7 @@ export class Queue<T> {
 		return this.#tail - this.#head
 	}
 
-	set length(x) {
+	set length(x: number) {
 		const len = this.length
 		this.#tail = x + this.#head
 		if (x < len)
