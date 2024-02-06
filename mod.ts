@@ -257,7 +257,7 @@ export class Queue<T> {
 		const len = this.length
 		this.#tail = x + this.#head
 		if (x < len)
-			for (let i = this.#head; i < this.#tail; ++i)
+			for (let i = x + this.#head + 1; i < this.#head + len; ++i)
 				delete this.#list[ i ]
 	}
 
