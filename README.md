@@ -30,3 +30,19 @@ const array = await new AsyncIter(await asyncRange(5, 10))
   .filter((x) => x % 2)
   .collect();
 ```
+## Examples
+### Processing a zipped csv file
+```ts
+import { CsvParseStream } from 'https://deno.land/std/csv/mod.ts'
+import { AsyncIter } from 'https://deno.land/x/iterstar/mod.ts'
+import { read } from 'https://deno.land/x/streaming_zip/read.ts'
+
+const iter: AsyncIter<string[]> = new AsyncIter(read((await fetch('URL')).body!))
+  .filter<{ type: 'file' }>(entry => entry.type === 'file')
+  .map(entry => entry.body.stream().pipeThrough(new TextDecoderStream()).pipeThrough(new CsvParseStream()))
+  .flat()
+
+const keys: string[] = (await iter.shift())!
+iter
+  .map(values => values.reduce((obj, value, i) => (obj[keys[i]] = value, obj), {} as Record<string, string>))
+  .forEach(row => console.log(row))
