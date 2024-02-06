@@ -52,45 +52,45 @@ export class Iter<T> {
 	}
 
 	map<U>(func: (x: T) => U): Iter<U> {
-		return new Iter((function* (gen) {
-			for (const x of gen)
+		return new Iter((function* (iter) {
+			for (const x of iter)
 				yield func(x)
-		})(this.#gen))
+		})(this))
 	}
 
 	flat(): Iter<Flat<T>> {
-		return new Iter((function* (gen) {
-			for (const x of gen)
+		return new Iter((function* (iter) {
+			for (const x of iter)
 				if ((x as Force)[ Symbol.iterator ])
 					for (const y of new Iter(x as Force).flat())
 						yield y
 				else
 					yield x
-		})(this.#gen)) as Force
+		})(this)) as Force
 	}
 
 	filter<U, V extends unknown = boolean>(func: (x: T) => V): Iter<Extract<T, U>> {
-		return new Iter((function* (gen) {
-			for (const x of gen)
+		return new Iter((function* (iter) {
+			for (const x of iter)
 				if (func(x))
 					yield x as Extract<T, U>
-		})(this.#gen))
+		})(this))
 	}
 
 	slice(start = 0, end = Infinity): Iter<T> {
 		if (start < 0)
 			start = 0
 		end -= start
-		return new Iter((function* (gen) {
+		return new Iter((function* (iter) {
 			if (end-- > 0)
-				for (const x of gen) {
+				for (const x of iter) {
 					if (start-- > 0)
 						continue
 					yield x
 					if (end-- <= 0)
 						break
 				}
-		})(this.#gen))
+		})(this))
 	}
 
 	reduce(func: (x: T, y: T) => T): T
@@ -164,38 +164,38 @@ export class AsyncIter<T> {
 	}
 
 	map<U>(func: (x: T) => U): AsyncIter<U> {
-		return new AsyncIter((async function* (gen) {
-			for await (const x of gen)
+		return new AsyncIter((async function* (asyncIter) {
+			for await (const x of asyncIter)
 				yield func(x)
-		})(this.#gen))
+		})(this))
 	}
 
 	flat(): AsyncIter<AsyncFlat<T>> {
-		return new AsyncIter((async function* (gen) {
-			for await (const x of gen)
+		return new AsyncIter((async function* (asyncIter) {
+			for await (const x of asyncIter)
 				if ((x as Force)[ Symbol.asyncIterator ])
 					for await (const y of new AsyncIter(x as Force).flat())
 						yield y
 				else
 					yield x
-		})(this.#gen)) as Force
+		})(this)) as Force
 	}
 
 	filter<U, V extends unknown = boolean>(func: (x: T) => V): AsyncIter<Extract<T, U>> {
-		return new AsyncIter((async function* (gen) {
-			for await (const x of gen)
+		return new AsyncIter((async function* (asyncIter) {
+			for await (const x of asyncIter)
 				if (func(x))
 					yield x as Extract<T, U>
-		})(this.#gen))
+		})(this))
 	}
 
 	slice(start = 0, end = Infinity): AsyncIter<T> {
 		if (start < 0)
 			start = 0
 		end -= start
-		return new AsyncIter((async function* (gen) {
+		return new AsyncIter((async function* (asyncIter) {
 			if (end-- > 0)
-				for await (const x of gen) {
+				for await (const x of asyncIter) {
 					if (start-- > 0)
 						continue
 					yield x
@@ -203,7 +203,7 @@ export class AsyncIter<T> {
 						break
 				}
 
-		})(this.#gen))
+		})(this))
 	}
 
 	async reduce(func: (x: T, y: T) => T): Promise<T>
