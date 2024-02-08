@@ -96,16 +96,14 @@ faster to shift than to shift on a traditional array.
 ```ts
 import { Queue } from "https://deno.land/x/iterstar/mod.ts";
 
-const data = []; // Mysterious Data
+const sleep = (ms: number) => new Promise(a => setTimeout(() => a(true), ms))
 
-const queue = new Queue(data);
-while (queue.length) {
-  const value = queue.shift();
-  if (someCondition) {
-    // Code
-  } else {
-    queue.push(value);
-  }
+const queue = new Queue(range(0, 10));
+for (const value of queue) {
+	console.log(value)
+	if (Math.random() < 0.5)
+		queue.push(value)
+	await sleep(200)
 }
 ```
 
