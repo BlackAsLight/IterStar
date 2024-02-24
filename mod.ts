@@ -187,10 +187,10 @@ export class Iter<T> {
 	 * Flattens the values as they pass through the iterable.
 	 */
 	flat(): Iter<Flat<T>> {
+		const iters: Iterator<T>[] = [this.#gen]
 		return new Iter<Flat<T>>({
 			[Symbol.iterator]: () => ({
 				next: () => {
-					const iters: Iterator<T>[] = [this.#gen]
 					while (iters.length) {
 						const iter = iters.pop()!
 						const next = iter.next()
@@ -433,10 +433,10 @@ export class AsyncIter<T> {
 	 * Flattens the values as they pass through the iterable.
 	 */
 	flat(): AsyncIter<AsyncFlat<T>> {
+		const iters: AsyncIterator<T>[] = [this.#gen]
 		return new AsyncIter<AsyncFlat<T>>({
 			[Symbol.asyncIterator]: () => ({
 				next: async () => {
-					const iters: AsyncIterator<T>[] = [this.#gen]
 					while (iters.length) {
 						const iter = iters.pop()!
 						const next = await iter.next()
