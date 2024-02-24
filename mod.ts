@@ -19,6 +19,39 @@ export async function* asyncRange(from = 0, to?: number): AsyncGenerator<number>
 	for (let i = from; i < to; ++i) yield i
 }
 
+export async function parallel<T, U>(
+	threads: number,
+	arrayLike: Iterable<T> | AsyncIterable<T>,
+	func: (x: T) => Promise<U>,
+): Promise<U[]> {
+	const iter = Symbol.iterator in arrayLike ? arrayLike[Symbol.iterator]() : arrayLike[Symbol.asyncIterator]()
+	const promises: Promise<number>[] = []
+	const output: U[] = []
+
+	x: {
+		let next: IteratorResult<T>
+		for (let i = 0; i < threads; ++i) {
+			next = await iter.next()
+			if (next.done) break x
+			promises.push(wrap(next.value, i, i))
+		}
+		let j = promises.length
+		while (true) {
+			const i = await Promise.race(promises)
+			next = await iter.next()
+			if (next.done) break
+			promises[i] = wrap(next.value, j++, i)
+		}
+	}
+	await Promise.all(promises)
+
+	return output
+	async function wrap(value: T, outputIndex: number, promiseIndex: number) {
+		output[outputIndex] = await func(value)
+		return promiseIndex
+	}
+}
+
 export class Iter<T> {
 	#gen: Generator<T>
 	constructor(array: { [Symbol.iterator](): Iterator<T> }) {
