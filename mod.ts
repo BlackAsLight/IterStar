@@ -232,13 +232,10 @@ export class Iter<T> {
 		return new Iter(
 			(function* (gen) {
 				if (end > 0) {
-					while (start-- > 0)
-						if (gen.next().done)
-							return
+					while (start-- > 0) if (gen.next().done) return
 					while (end-- > 0) {
 						const next = gen.next()
-						if (next.done)
-							return
+						if (next.done) return
 						yield next.value
 					}
 				}
@@ -481,13 +478,10 @@ export class AsyncIter<T> {
 		return new AsyncIter(
 			(async function* (gen) {
 				if (end > 0) {
-					while (start-- > 0)
-						if ((await gen.next()).done)
-							return
+					while (start-- > 0) if ((await gen.next()).done) return
 					while (end-- > 0) {
 						const next = await gen.next()
-						if (next.done)
-							return
+						if (next.done) return
 						yield next.value
 					}
 				}
