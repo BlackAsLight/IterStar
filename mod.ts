@@ -9,14 +9,6 @@ export function* range(from = 0, to?: number): Generator<number> {
 	for (let i = from; i < to; ++i) yield i
 }
 
-export async function* asyncRange(from = 0, to?: number): AsyncGenerator<number> {
-	if (to == undefined) {
-		to = from
-		from = 0
-	}
-	for (let i = from; i < to; ++i) yield i
-}
-
 export async function parallel<T, U>(
 	threads: number,
 	iterable: Iterable<T> | AsyncIterable<T>,
