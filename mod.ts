@@ -19,10 +19,10 @@ export async function* asyncRange(from = 0, to?: number): AsyncGenerator<number>
 
 export async function parallel<T, U>(
 	threads: number,
-	arrayLike: Iterable<T> | AsyncIterable<T>,
+	iterable: Iterable<T> | AsyncIterable<T>,
 	func: (x: T) => Promise<U>,
 ): Promise<U[]> {
-	const iter = Symbol.iterator in arrayLike ? arrayLike[Symbol.iterator]() : arrayLike[Symbol.asyncIterator]()
+	const iter = Symbol.iterator in iterable ? iterable[Symbol.iterator]() : iterable[Symbol.asyncIterator]()
 	const promises: Promise<number>[] = []
 	const output: U[] = []
 
@@ -75,6 +75,71 @@ export class Iter<T> {
 
 	forEach<U>(func: (x: T) => U): void {
 		for (const x of this.#gen) func(x)
+	}
+
+	parallelRace<U>(threads: number, func: (x: T) => Promise<U>): AsyncIter<U> {
+		return new AsyncIter<U>(
+			(async function* (gen) {
+				const promises: Promise<{ i: number; x: U }>[] = []
+				x: {
+					let next: IteratorResult<T>
+					for (let i = 0; i < threads; ++i) {
+						next = gen.next()
+						if (next.done) break x
+						promises.push(func(next.value).then(x => ({ i, x })))
+					}
+					while (true) {
+						const { i, x } = await Promise.race(promises)
+						yield x
+						next = gen.next()
+						if (next.done) {
+							promises.splice(i, 1)
+							break
+						}
+						promises[i] = func(next.value).then(x => ({ i, x }))
+					}
+				}
+
+				let resolve: (() => void) | undefined
+				const yields: U[] = []
+				const len = promises.length
+				while (promises.length)
+					promises.pop()!.then(({ x }) => {
+						yields.push(x)
+						if (resolve) {
+							resolve()
+							resolve = undefined
+						}
+					})
+				for (let i = 0; i < len; ++i) {
+					while (!yields.length) await new Promise<void>(a => (resolve = a))
+					yield yields.pop()!
+				}
+			})(this.#gen),
+		)
+	}
+
+	parallelOrder<U>(threads: number, func: (x: T) => Promise<U>): AsyncIter<U> {
+		return new AsyncIter<U>(
+			(async function* (gen) {
+				let key = 0
+				const map: Map<number, Promise<U>> = new Map()
+				const iter = map.entries()
+
+				for (let i = 0; i < threads; ++i) {
+					const next = gen.next()
+					if (next.done) break
+					map.set(key++, func(next.value))
+				}
+				while (true) {
+					yield (iter.next().value as [number, Promise<U>])[1]
+					const next = gen.next()
+					if (next.done) break
+					map.set(key++, func(next.value))
+				}
+				for (const x of iter) yield x[1]
+			})(this.#gen),
+		)
 	}
 
 	map<U>(func: (x: T) => U): Iter<U> {
@@ -201,6 +266,71 @@ export class AsyncIter<T> {
 
 	async forEach<U>(func: (x: T) => U): Promise<void> {
 		for await (const x of this.#gen) await func(x)
+	}
+
+	parallelRace<U>(threads: number, func: (x: T) => Promise<U>): AsyncIter<U> {
+		return new AsyncIter<U>(
+			(async function* (gen) {
+				const promises: Promise<{ i: number; x: U }>[] = []
+				x: {
+					let next: IteratorResult<T>
+					for (let i = 0; i < threads; ++i) {
+						next = await gen.next()
+						if (next.done) break x
+						promises.push(func(next.value).then(x => ({ i, x })))
+					}
+					while (true) {
+						const { i, x } = await Promise.race(promises)
+						yield x
+						next = await gen.next()
+						if (next.done) {
+							promises.splice(i, 1)
+							break
+						}
+						promises[i] = func(next.value).then(x => ({ i, x }))
+					}
+				}
+
+				let resolve: (() => void) | undefined
+				const yields: U[] = []
+				const len = promises.length
+				while (promises.length)
+					promises.pop()!.then(({ x }) => {
+						yields.push(x)
+						if (resolve) {
+							resolve()
+							resolve = undefined
+						}
+					})
+				for (let i = 0; i < len; ++i) {
+					while (!yields.length) await new Promise<void>(a => (resolve = a))
+					yields.pop()!
+				}
+			})(this.#gen),
+		)
+	}
+
+	parallelOrder<U>(threads: number, func: (x: T) => Promise<U>): AsyncIter<U> {
+		return new AsyncIter<U>(
+			(async function* (gen) {
+				let key = 0
+				const map: Map<number, Promise<U>> = new Map()
+				const iter = map.entries()
+
+				for (let i = 0; i < threads; ++i) {
+					const next = await gen.next()
+					if (next.done) break
+					map.set(key++, func(next.value))
+				}
+				while (true) {
+					yield (iter.next().value as [number, Promise<U>])[1]
+					const next = await gen.next()
+					if (next.done) break
+					map.set(key++, func(next.value))
+				}
+				for (const x of iter) yield x[1]
+			})(this.#gen),
+		)
 	}
 
 	map<U>(func: (x: T) => U): AsyncIter<U> {
