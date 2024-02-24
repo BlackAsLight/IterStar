@@ -1,7 +1,11 @@
 type Flat<T> = T extends Iterable<infer U> ? (U extends object ? Flat<U> : U) : T
 type AsyncFlat<T> = T extends AsyncIterable<infer U> ? (U extends object ? AsyncFlat<U> : U) : T
 
-export function* range(from = 0, to?: number): Generator<number> {
+/**
+ * A simply number generator that will generate numbers from `from` up to but excluding `to`.
+ * If to is omitted then `to` becomes `from` and `from` becomes `0`.
+ */
+export function* range(from: number, to?: number): Generator<number> {
 	if (to == undefined) {
 		to = from
 		from = 0
@@ -9,6 +13,10 @@ export function* range(from = 0, to?: number): Generator<number> {
 	for (let i = from; i < to; ++i) yield i
 }
 
+/**
+ * This function consumes an iterable passing the values to the `func` where a max of `threads` amount of `func`s are being
+ * processed concurrently.
+ */
 export async function parallel<T, U>(
 	threads: number,
 	iterable: Iterable<T> | AsyncIterable<T>,
@@ -42,6 +50,11 @@ export async function parallel<T, U>(
 	}
 }
 
+/**
+ * This class takes in an iterable and offers many array like methods to consume said iterable. Methods that return Iter or
+ * AsyncIter don't actually pull the values through on their own. You'll need to call a method like `.forEach`, `.wait`, or
+ * `.shift` for a value to actually be pulled through and applied to the different methods.
+ */
 export class Iter<T> {
 	#gen: Generator<T>
 	constructor(iterable: Iterable<T>) {
@@ -50,25 +63,40 @@ export class Iter<T> {
 		})()
 	}
 
+	/**
+	 * Pulls all the values in the iterable through and returns them in an array.
+	 */
 	collect(): T[] {
 		const output = []
 		for (const x of this.#gen) output.push(x)
 		return output
 	}
 
+	/**
+	 * Pulls all the values in the iterable until its empty.
+	 */
 	wait(): void {
 		// deno-lint-ignore no-empty
 		while (!this.#gen.next().done) {}
 	}
 
+	/**
+	 * Pulls the next value in the iterable through and returns it, else returns `undefined `if empty.
+	 */
 	shift(): T | undefined {
 		return this.#gen.next().value
 	}
 
+	/**
+	 * Pulls all the values in the iterable through passing them to the `func`.
+	 */
 	forEach<U>(func: (x: T) => U): void {
 		for (const x of this.#gen) func(x)
 	}
 
+	/**
+	 * This method is just like `Iter.parallelOrder`, but doesn't maintain the output order of the pulled in values.
+	 */
 	parallelRace<U>(threads: number, func: (x: T) => Promise<U>): AsyncIter<U> {
 		return new AsyncIter<U>(
 			(async function* (gen) {
@@ -111,6 +139,11 @@ export class Iter<T> {
 		)
 	}
 
+	/**
+	 * This method is like the `AsyncIter.map` method, but processes at max `threads` concurrently, meaning if this step is
+	 * quite time consuming in a non-event blocking type of way then you can reduce the overall time by starting the next
+	 * `threads - 1` sooner.
+	 */
 	parallelOrder<U>(threads: number, func: (x: T) => Promise<U>): AsyncIter<U> {
 		return new AsyncIter<U>(
 			(async function* (gen) {
@@ -134,6 +167,10 @@ export class Iter<T> {
 		)
 	}
 
+	/**
+	 * Passes the iterable values through the `func` and changing them to what `func` returns. Mutates the values in the
+	 * iterable as they pass through.
+	 */
 	map<U>(func: (x: T) => U): Iter<U> {
 		return new Iter<U>({
 			[Symbol.iterator]: () => ({
@@ -146,6 +183,9 @@ export class Iter<T> {
 		})
 	}
 
+	/**
+	 * Flattens the values as they pass through the iterable.
+	 */
 	flat(): Iter<Flat<T>> {
 		return new Iter<Flat<T>>({
 			[Symbol.iterator]: () => ({
@@ -166,6 +206,9 @@ export class Iter<T> {
 		})
 	}
 
+	/**
+	 * Filters out desired values as they pass through the iterable.
+	 */
 	filter<U extends T>(func: ((x: T) => x is U) | ((x: T) => unknown)): Iter<Extract<T, U>> {
 		return new Iter<Extract<T, U>>({
 			[Symbol.iterator]: () => ({
@@ -180,21 +223,32 @@ export class Iter<T> {
 		})
 	}
 
+	/**
+	 * Voids the first `start` values as they pass through, returning the next `end - start` values.
+	 */
 	slice(start = 0, end = Infinity): Iter<T> {
 		if (start < 0) start = 0
 		end -= start
 		return new Iter(
 			(function* (gen) {
-				if (end-- > 0)
-					for (const x of gen) {
-						if (start-- > 0) continue
-						yield x
-						if (end-- <= 0) break
+				if (end > 0) {
+					while (start-- > 0)
+						if (gen.next().done)
+							return
+					while (end-- > 0) {
+						const next = gen.next()
+						if (next.done)
+							return
+						yield next.value
 					}
+				}
 			})(this.#gen),
 		)
 	}
 
+	/**
+	 * Pulls all the values in the iterable through passing them to `func` to reduce to a single value.
+	 */
 	reduce(func: (x: T, y: T) => T): T
 	reduce<U>(func: (x: U, y: T) => U, init: U): U
 	reduce<U>(func: (x: T | U, y: T) => U, init?: T | U): T | U {
@@ -206,16 +260,25 @@ export class Iter<T> {
 		return init
 	}
 
+	/**
+	 * Pulls all the values in the iterable through joining them into a string with `sep` in between.
+	 */
 	join(sep = ''): string {
 		let output = '' + ((this.#gen.next().value as T | undefined) ?? '')
 		for (const x of this.#gen) output += sep + x
 		return output
 	}
 
+	/**
+	 * Converts the Iter class into an AsyncIter.
+	 */
 	toAsync(): AsyncIter<T> {
 		return new AsyncIter(this)
 	}
 
+	/**
+	 * Provides a ReadableStream property of the iterable.
+	 */
 	get readable(): ReadableStream<T> {
 		return new ReadableStream({
 			pull: controller => {
@@ -226,6 +289,9 @@ export class Iter<T> {
 		})
 	}
 
+	/**
+	 * Makes the iterable be passed to anything that accepts an Iterator
+	 */
 	[Symbol.iterator](): Iterator<T> {
 		return {
 			next: () => this.#gen.next(),
@@ -233,6 +299,11 @@ export class Iter<T> {
 	}
 }
 
+/**
+ * This class takes in an iterable and offers many array like methods to consume said iterable. Methods that return AsyncIter
+ * don't actually pull the values through on their own. You'll need to call a method like `.forEach`, `.wait`, or `.shift` for a
+ * value to actually be pulled through and applied to the different methods.
+ */
 export class AsyncIter<T> {
 	#gen: AsyncGenerator<T>
 	constructor(iterable: Iterable<T> | AsyncIterable<T>) {
@@ -241,25 +312,40 @@ export class AsyncIter<T> {
 		})()
 	}
 
+	/**
+	 * Pulls all the values in the iterable through and returns them in an array.
+	 */
 	async collect(): Promise<T[]> {
 		const output = []
 		for await (const x of this.#gen) output.push(x)
 		return output
 	}
 
+	/**
+	 * Pulls all the values in the iterable until its empty.
+	 */
 	async wait(): Promise<void> {
 		// deno-lint-ignore no-empty
 		while (!(await this.#gen.next()).done) {}
 	}
 
+	/**
+	 * Pulls the next value in the iterable through and returns it, else returns `undefined` if empty.
+	 */
 	async shift(): Promise<T | undefined> {
 		return (await this.#gen.next()).value
 	}
 
+	/**
+	 * Pulls all the values in the iterable through passing them to the `func`.
+	 */
 	async forEach<U>(func: (x: T) => U): Promise<void> {
 		for await (const x of this.#gen) await func(x)
 	}
 
+	/**
+	 * This method is just like the `AsyncIter.parallelOrder`, but doesn't maintain the output order of the pulled in values.
+	 */
 	parallelRace<U>(threads: number, func: (x: T) => Promise<U>): AsyncIter<U> {
 		return new AsyncIter<U>(
 			(async function* (gen) {
@@ -302,6 +388,11 @@ export class AsyncIter<T> {
 		)
 	}
 
+	/**
+	 * This method is like the `AsyncIter.map` method, but processes at max `threads` concurrently, meaning if this step is
+	 * quite time consuming in a non-event blocking type of way then you can reduce the overall time by starting the next
+	 * `threads - 1` sooner.
+	 */
 	parallelOrder<U>(threads: number, func: (x: T) => Promise<U>): AsyncIter<U> {
 		return new AsyncIter<U>(
 			(async function* (gen) {
@@ -325,6 +416,10 @@ export class AsyncIter<T> {
 		)
 	}
 
+	/**
+	 * Passes the iterable values through the `func` and changing them to what `func` returns. Mutating the values in the
+	 * iterable as they pass through
+	 */
 	map<U>(func: (x: T) => U): AsyncIter<U> {
 		return new AsyncIter<U>({
 			[Symbol.asyncIterator]: () => ({
@@ -337,6 +432,9 @@ export class AsyncIter<T> {
 		})
 	}
 
+	/**
+	 * Flattens the values as they pass through the iterable.
+	 */
 	flat(): AsyncIter<AsyncFlat<T>> {
 		return new AsyncIter<AsyncFlat<T>>({
 			[Symbol.asyncIterator]: () => ({
@@ -357,6 +455,9 @@ export class AsyncIter<T> {
 		})
 	}
 
+	/**
+	 * Filters out desired values as they pass through the iterable.
+	 */
 	filter<U extends T>(func: ((x: T) => x is U) | ((x: T) => unknown)): AsyncIter<Extract<T, U>> {
 		return new AsyncIter<Extract<T, U>>({
 			[Symbol.asyncIterator]: () => ({
@@ -371,21 +472,32 @@ export class AsyncIter<T> {
 		})
 	}
 
+	/**
+	 * Voids the first `start` values as they pass through, returning the next `end - start` values.
+	 */
 	slice(start = 0, end = Infinity): AsyncIter<T> {
 		if (start < 0) start = 0
 		end -= start
 		return new AsyncIter(
 			(async function* (gen) {
-				if (end-- > 0)
-					for await (const x of gen) {
-						if (start-- > 0) continue
-						yield x
-						if (end-- <= 0) break
+				if (end > 0) {
+					while (start-- > 0)
+						if ((await gen.next()).done)
+							return
+					while (end-- > 0) {
+						const next = await gen.next()
+						if (next.done)
+							return
+						yield next.value
 					}
+				}
 			})(this.#gen),
 		)
 	}
 
+	/**
+	 * Pulls all the values in the iterable through passing them to `func` to reduce to a single value.
+	 */
 	async reduce(func: (x: T, y: T) => T): Promise<T>
 	async reduce<U>(func: (x: U, y: T) => U, init: U): Promise<U>
 	async reduce<U>(func: (x: T | U, y: T) => U, init?: T | U): Promise<T | U> {
@@ -397,12 +509,18 @@ export class AsyncIter<T> {
 		return init
 	}
 
+	/**
+	 * Pulls all the values in the iterable through joining them into a string with `sep` in between.
+	 */
 	async join(sep = ''): Promise<string> {
 		let output = '' + (((await this.#gen.next()).value as T | undefined) ?? '')
 		for await (const x of this.#gen) output += sep + x
 		return output.slice(sep.length)
 	}
 
+	/**
+	 * Provides a ReadableStream property of the iterable.
+	 */
 	get readable(): ReadableStream<T> {
 		return new ReadableStream({
 			pull: async controller => {
@@ -413,6 +531,9 @@ export class AsyncIter<T> {
 		})
 	}
 
+	/**
+	 * Makes the iterable be passed to anything that accepts an AsyncIterator.
+	 */
 	[Symbol.asyncIterator](): AsyncIterator<T> {
 		return {
 			next: () => this.#gen.next(),
