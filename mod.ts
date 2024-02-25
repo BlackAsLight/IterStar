@@ -417,8 +417,8 @@ export class AsyncIter<T> {
 	 * Passes the iterable values through the `func` and changing them to what `func` returns. Mutating the values in the
 	 * iterable as they pass through
 	 */
-	map<U>(func: (x: T) => U): AsyncIter<U> {
-		return new AsyncIter<U>({
+	map<U>(func: (x: T) => U): AsyncIter<Awaited<U>> {
+		return new AsyncIter<Awaited<U>>({
 			[Symbol.asyncIterator]: () => ({
 				next: async () => {
 					const next = await this.#gen.next()
@@ -455,14 +455,14 @@ export class AsyncIter<T> {
 	/**
 	 * Filters out desired values as they pass through the iterable.
 	 */
-	filter<U extends T>(func: ((x: T) => x is U) | ((x: T) => unknown)): AsyncIter<Extract<T, U>> {
-		return new AsyncIter<Extract<T, U>>({
+	filter<U extends T>(func: ((x: T) => x is U) | ((x: T) => unknown)): AsyncIter<Extract<T, Awaited<U>>> {
+		return new AsyncIter<Extract<T, Awaited<U>>>({
 			[Symbol.asyncIterator]: () => ({
 				next: async () => {
 					while (true) {
 						const next = await this.#gen.next()
 						if (next.done) return { done: true, value: undefined }
-						if (await func(next.value)) return { done: false, value: next.value as Extract<T, U> }
+						if (await func(next.value)) return { done: false, value: next.value as Extract<T, Awaited<U>> }
 					}
 				},
 			}),
@@ -492,14 +492,14 @@ export class AsyncIter<T> {
 	/**
 	 * Pulls all the values in the iterable through passing them to `func` to reduce to a single value.
 	 */
-	async reduce(func: (x: T, y: T) => T): Promise<T>
-	async reduce<U>(func: (x: U, y: T) => U, init: U): Promise<U>
-	async reduce<U>(func: (x: T | U, y: T) => U, init?: T | U): Promise<T | U> {
+	async reduce(func: (x: T, y: T) => T | Promise<T>): Promise<T>
+	async reduce<U>(func: (x: Awaited<U>, y: T) => U, init: U | Awaited<U>): Promise<U>
+	async reduce<U>(func: (x: T | Awaited<U>, y: T) => U, init?: T | U | Awaited<U>): Promise<T | U> {
 		if (init == undefined) {
 			init = await this.shift()
 			if (init == undefined) throw Error('Uncaught TypeError: reduce of empty iter with no initial value')
 		}
-		for await (const x of this.#gen) init = await func(init, x)
+		for await (const x of this.#gen) init = await func(await init, x)
 		return init
 	}
 
