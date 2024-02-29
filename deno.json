@@ -1,6 +1,6 @@
 {
 	"name": "@doctor/iterstar",
-	"version": "2.0.2",
+	"version": "2.1.0",
 	"exports": "./mod.ts",
 	"publish": {
 		"exclude": [
@@ -9,6 +9,7 @@
 		]
 	},
 	"tasks": {
-		"fmt": "prettier --write ./**/*.ts"
+		"fmt": "prettier --write ./**/*.ts",
+		"check": "deno check mod.ts && deno cache --lock-write mod.ts"
 	}
 }

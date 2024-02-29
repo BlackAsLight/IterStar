@@ -267,6 +267,46 @@ export class Iter<T> {
 	}
 
 	/**
+	 * Pulls in and sorts `size` amount of values at once based off the `func` argument. Only really useful if the data is
+	 * already mostly sorted relative to the `size` being sorted at once. Only the last `size` of values will be guaranteed to
+	 * be sorted.
+	 */
+	sort(size: number, func: (x: T, y: T) => number): Iter<T> {
+		return new Iter<T>(
+			(function* (iter) {
+				const array = iter.slice(0, size - 1).collect()
+				for (const x of iter.#gen) {
+					array.push(x)
+					array.sort((x, y) => func(x, y) * -1)
+					yield array.pop()!
+				}
+				while (array.length) yield array.pop()!
+			})(this),
+		)
+	}
+
+	/**
+	 * Groups an iterable's values up into arrays. With each new array starting when truthy value is returned from the `func`
+	 * argument. The `func` that returns true will always be at the start of the array with all processing values having
+	 * returned false to be appended to the same array.
+	 */
+	split(func: (x: T) => boolean): Iter<T[]> {
+		return new Iter<T[]>(
+			(function* (iter) {
+				let array: T[] = []
+				for (const x of iter.#gen) {
+					if (func(x)) {
+						yield array
+						array = []
+					}
+					array.push(x)
+				}
+				yield array
+			})(this),
+		)
+	}
+
+	/**
 	 * Converts the Iter class into an AsyncIter.
 	 */
 	toAsync(): AsyncIter<T> {
@@ -513,6 +553,46 @@ export class AsyncIter<T> {
 	}
 
 	/**
+	 * Pulls in and sorts `size` amount of values at once based off the `func` argument. Only really useful if the data is
+	 * already mostly sorted relative to the `size` being sorted at once. Only the last `size` of values will be guaranteed to
+	 * be sorted.
+	 */
+	sort(size: number, func: (x: T, y: T) => number): AsyncIter<T> {
+		return new AsyncIter<T>(
+			(async function* (iter) {
+				const array = await iter.slice(0, size - 1).collect()
+				for await (const x of iter.#gen) {
+					array.push(x)
+					array.sort((x, y) => func(x, y) * -1)
+					yield array.pop()!
+				}
+				while (array.length) yield array.pop()!
+			})(this),
+		)
+	}
+
+	/**
+	 * Groups an iterable's values up into arrays. With each new array starting when truthy value is returned from the `func`
+	 * argument. The `func` that returns true will always be at the start of the array with all processing values having
+	 * returned false to be appended to the same array.
+	 */
+	split(func: (x: T) => boolean | Promise<boolean>): AsyncIter<T[]> {
+		return new AsyncIter<T[]>(
+			(async function* (iter) {
+				let array: T[] = []
+				for await (const x of iter.#gen) {
+					if (await func(x)) {
+						yield array
+						array = []
+					}
+					array.push(x)
+				}
+				yield array
+			})(this),
+		)
+	}
+
+	/**
 	 * Provides a ReadableStream property of the iterable.
 	 */
 	get readable(): ReadableStream<T> {
@@ -535,6 +615,11 @@ export class AsyncIter<T> {
 	}
 }
 
+/**
+ * This class consumes an entire iterable, if provided, and lets you shift and pop from it in O(1) time. It's shifting and
+ * popping is slower than that of a traditional's array's pop, so if you need a queue of a quite large size and are unable to
+ * work with a stack then this might be useful to you.
+ */
 export class Queue<T> {
 	#head = 0
 	#tail = 0
@@ -543,16 +628,26 @@ export class Queue<T> {
 		if (iterable) for (const x of iterable) this.#list[this.#tail++] = x
 	}
 
+	/**
+	 * Get the length of the Queue.
+	 */
 	get length(): number {
 		return this.#tail - this.#head
 	}
 
+	/**
+	 * Set the length of the Queue. Returning undefined for any additional values if increased and deleting any trailing values
+	 * if decreased.
+	 */
 	set length(x: number) {
 		const len = this.length
 		this.#tail = x + this.#head
 		if (x < len) for (let i = x + this.#head + 1; i < this.#head + len; ++i) delete this.#list[i]
 	}
 
+	/**
+	 * Shift the front value off the queue, or undefined if there is no value.
+	 */
 	shift(): T | undefined {
 		if (this.#head < this.#tail) {
 			const x = this.#list[this.#head]
@@ -561,11 +656,17 @@ export class Queue<T> {
 		}
 	}
 
+	/**
+	 * Place a value at the start of the queue in the reverse order provided as arguments.
+	 */
 	unshift(...array: T[]): number {
 		for (const value of array) this.#list[--this.#head] = value
 		return this.length
 	}
 
+	/**
+	 * Pop the last value off the queue, or undefined if there is no value.
+	 */
 	pop(): T | undefined {
 		if (this.#head < this.#tail) {
 			const x = this.#list[--this.#tail]
@@ -574,15 +675,24 @@ export class Queue<T> {
 		}
 	}
 
+	/**
+	 * Place a value at the end of the queue in the same order provided as arguments.
+	 */
 	push(...array: T[]): number {
 		for (const x of array) this.#list[this.#tail++] = x
 		return this.length
 	}
 
+	/**
+	 * Get a value at a given index without removing it from the queue.
+	 */
 	at(i: number): T | undefined {
 		return this.#list[i + this.#head]
 	}
 
+	/**
+	 * Makes the queue be passed to anything that accepts an Iterator.
+	 */
 	[Symbol.iterator](): Iterator<T> {
 		return {
 			next: () => ({
