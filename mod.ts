@@ -1,3 +1,10 @@
+/**
+ * @module
+ * This module is designed to work with iterables such as ReadableStreams, Generators and anything that makes use of the
+ * `Symbol.iterator` and `Symbol.asyncIterator`. It offers many array like ways to work this these types of data without the
+ * need of it all being in memory at once.
+ */
+
 type Flat<T> = T extends Iterable<infer U> ? (U extends object ? Flat<U> : U) : T
 type AsyncFlat<T> = T extends AsyncIterable<infer U> ? (U extends object ? AsyncFlat<U> : U) : T
 
