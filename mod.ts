@@ -325,7 +325,7 @@ export class Iter<T> {
 	 * new Iter(range(0, 10)).map(x => x * 2).wait()
 	 * ```
 	 */
-	then(f: () => unknown) {
+	then<T>(f: () => T): T {
 		this.wait()
 		return f()
 	}
@@ -627,7 +627,7 @@ export class AsyncIter<T> {
 	 * new AsyncIter(range(0, 10)).map(x => x * 2).wait()
 	 * ```
 	 */
-	async then<T>(f: () => T) {
+	async then<T>(f: () => T): Promise<T> {
 		await this.wait()
 		return f()
 	}
