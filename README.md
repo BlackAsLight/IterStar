@@ -15,15 +15,15 @@ generative data in an array type fashion. I don't see this class getting used
 that much, but it's good to have a sync version of the async type.
 
 ```ts
-import { AsyncIter } from "https://deno.land/x/iterstar/mod.ts";
+import { Iter } from '@doctor/iterstar'
 
 // Without Iter
-for (let i = 0; i < Number.MAX_SAFE_INTEGER; ++i) {
-  console.log(i);
-}
+for (let i = 0; i < Number.MAX_SAFE_INTEGER; ++i)
+	console.log(i)
 
 // With Iter
-new Iter(range(0, Number.MAX_SAFE_INTEGER)).forEach(console.log);
+new Iter(range(0, Number.MAX_SAFE_INTEGER))
+	.forEach(console.log)
 ```
 
 ## class AsyncIter
@@ -33,56 +33,43 @@ ReadableStream. For instance, if you wanted to process a zipped csv file all in
 memory from a fetch request.
 
 ```ts
-import { CsvParseStream } from "https://deno.land/std/csv/mod.ts";
-import { read } from "https://deno.land/x/streaming_zip/read.ts";
-
-import { AsyncIter } from "https://deno.land/x/iterstar/mod.ts";
+import { AsyncIter } from '@doctor/iterstar'
+import { CsvParseStream } from '@std/csv'
+import { Entry, ZipReaderStream } from '@zip-js/zip-js'
 
 // Without AsyncIter
-const gen = unzipCSV((await fetch("")).body!);
-const keys = (await gen.next()).value!;
+const gen: AsyncGenerator<string[]> = unzipCSV(
+	(await fetch('')).body!.pipeThrough(new ZipReaderStream())
+)
+const keys: string[] = (await gen.next()).value!
 for await (const values of gen) {
-  const row = values.reduce(
-    (obj, value, i) => (obj[keys[i]] = value, obj),
-    {} as Record<string, string>,
-  );
-  // Code
+	const row = values.reduce((obj, value, i) => (obj[keys[i]] = value, obj), {} as Record<string, string>)
+	//code
 }
 
-async function* unzipCSV(stream: ReadableStream<Uint8Array>) {
-  for await (const entry of read(stream)) {
-    if (entry.type === "file") {
-      for await (
-        const x of entry.body.stream().pipeThrough(new TextDecoderStream())
-          .pipeThrough(new CsvParseStream())
-      ) {
-        yield x;
-      }
-    }
-  }
+async function* unzipCSV(
+	readable: ReadableStream<Omit<Entry, "getData"> & { readable?: ReadableStream<Uint8Array> | undefined }>
+): AsyncGenerator<string[]> {
+	for await (const entry of readable)
+		if (entry.readable)
+			for await (const x of entry.readable.pipeThrough(new TextDecoderStream()).pipeThrough(new CsvParseStream()))
+				yield x
 }
 
 // With AsyncIter
-const iter: AsyncIter<string[]> = new AsyncIter(read((await fetch("")).body!))
-  .filter<{ type: "file" }>((entry) => entry.type === "file")
-  .map((entry) =>
-    entry.body.stream().pipeThrough(new TextDecoderStream()).pipeThrough(
-      new CsvParseStream(),
-    )
-  )
-  .flat();
+const iter: AsyncIter<string[]> = new AsyncIter(
+	(await fetch('')).body!.pipeThrough(new ZipReaderStream())
+)
+	.filter(entry => entry.readable)
+	.map(entry => entry.readable!.pipeThrough(new TextDecoderStream()).pipeThrough(new CsvParseStream()))
+	.flat()
 
-const keys: string[] = (await iter.shift())!;
+const keys: string[] = (await iter.shift())!
 iter
-  .map((values) =>
-    values.reduce(
-      (obj, value, i) => (obj[keys[i]] = value, obj),
-      {} as Record<string, string>,
-    )
-  )
-  .forEach((row) => {
-    // Code
-  });
+	.map(values => values.reduce((obj, value, i) => (obj[keys[i]] = value, obj), {} as Record<string, string>))
+	.forEach(row => {
+		// code
+	})
 ```
 
 ## class Queue
@@ -94,11 +81,11 @@ instead of stacks, and quite large queues then this queue is orders of magnitude
 faster to shift than to shift on a traditional array.
 
 ```ts
-import { Queue } from "https://deno.land/x/iterstar/mod.ts";
+import { Queue } from '@doctor/iterstar'
 
 const sleep = (ms: number) => new Promise(a => setTimeout(() => a(true), ms))
 
-const queue = new Queue(range(0, 10));
+const queue = new Queue(range(0, 10))
 for (const value of queue) {
 	console.log(value)
 	if (Math.random() < 0.5)
