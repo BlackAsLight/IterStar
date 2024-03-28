@@ -314,23 +314,6 @@ export class Iter<T> {
 	}
 
 	/**
-	 * Enables an alternative method for pulling all the contents through than the `.wait()` method for when in an `async await`
-	 * environment. Code will still run in a sync manner even though the `await` keyword is being used here, and that's because
-	 * JavaScript will execute async code as sync code until it's forced to push it onto the event loop.
-	 *
-	 * @example
-	 * ```ts
-	 * await new Iter(range(0, 10)).map(x => x * 2)
-	 * // or
-	 * new Iter(range(0, 10)).map(x => x * 2).wait()
-	 * ```
-	 */
-	then<T>(f: () => T): T {
-		this.wait()
-		return f()
-	}
-
-	/**
 	 * Converts the Iter class into an AsyncIter.
 	 */
 	toAsync(): AsyncIter<T> {
@@ -614,22 +597,6 @@ export class AsyncIter<T> {
 				yield array
 			})(this),
 		)
-	}
-
-	/**
-	 * Enables an alternative method for pulling all the contents through than the `.wait()` method for when using `async await`
-	 * syntax. Please note the differences in the outcome in the example below.
-	 *
-	 * @example
-	 * ```ts
-	 * await new AsyncIter(range(0, 10)).map(x => x * 2)
-	 * // or
-	 * new AsyncIter(range(0, 10)).map(x => x * 2).wait()
-	 * ```
-	 */
-	async then<T>(f: () => T): Promise<T> {
-		await this.wait()
-		return f()
 	}
 
 	/**
